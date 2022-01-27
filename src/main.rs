@@ -6,6 +6,14 @@ use serde_json::{Value};
 use anyhow::{anyhow, Error};
 use std::env;
 
+
+// 获取ip的url
+const IP_URL: &str = "https://sg.gcall.me/ip";
+// 每隔几次强制从dnspod获取最新的记录
+const FORCE_GET_RECORD_INTERVAL: i8 = 5;
+// 间隔时间
+const SLEEP_SECS: u64 = 120;
+
 #[derive(Serialize, Deserialize)]
 struct Res {
     records: Vec<Record>,
@@ -25,25 +33,38 @@ fn main() -> Result<(), Error> {
     let domain = env::var("dnspod_domain")?;
     let sub_domain = env::var("dnspod_subdomain")?;
     let token = env::var("dnspod_token")?;
+    println!("monitor current ip and modify [{}.{}] with token [{}]", sub_domain, domain, token);
     let mut latest_ip = "".to_string();
+
+    let mut i = 0;
     loop {
         let current_ip = current_ip();
         if let Ok(current_ip) = current_ip {
             // let current_ip = "127.0.0.1".to_string();
             println!("current ip = {}", current_ip);
-            if current_ip != latest_ip {
-                if let Some(record) = get_record(&domain, &sub_domain, &token) {
-                    modify_record(&current_ip, &record, &token, &domain);
+            if current_ip != latest_ip || i % FORCE_GET_RECORD_INTERVAL == 0 {
+                match get_record(&domain, &sub_domain, &token) {
+                    Ok(Some(record)) => {
+                        modify_record(&current_ip, &record, &token, &domain);
+                    }
+                    Ok(None) => {
+                        println!("no such record: {}.{}", sub_domain, domain);
+                        add_record(&current_ip, &token, &domain, &sub_domain);
+                    }
+                    Err(_) => {}
                 }
                 latest_ip = current_ip;
             }
+        } else {
+            println!("error fetch current ip");
         }
-        sleep(Duration::from_secs(30))
+        sleep(Duration::from_secs(SLEEP_SECS));
+        i += 1;
     }
 }
 
 fn current_ip() -> Result<String, Error> {
-    let result = reqwest::blocking::get("https://sg.gcall.me/ip");
+    let result = reqwest::blocking::get(IP_URL);
     match result {
         Ok(ip) => match ip.text() {
             Ok(text) => Ok(text),
@@ -53,7 +74,7 @@ fn current_ip() -> Result<String, Error> {
     }
 }
 
-fn get_record(domain: &str, sub_domain: &str, token: &str) -> Option<Record> {
+fn get_record(domain: &str, sub_domain: &str, token: &str) -> Result<Option<Record>, Error> {
     let mut params = HashMap::new();
     params.insert("login_token", token);
     params.insert("format", "json");
@@ -66,20 +87,21 @@ fn get_record(domain: &str, sub_domain: &str, token: &str) -> Option<Record> {
     let res = client.post("https://dnsapi.cn/Record.List")
         .form(&params)
         .send();
-    if let Ok(res) = res {
-        if let Ok(text) = res.text() {
-            println!("响应为 {:?}", text);
-            let result: serde_json::Result<Res> = serde_json::from_str(&text);
-            if let Ok(res) = result {
-                if res.records.len() == 1 {
-                    println!("当前记录的情况 {:?}", res.records[0]);
-                    return Some((&res.records[0]).clone());
-                }
+    let text = res?.text()?;
+    let result: serde_json::Result<Res> = serde_json::from_str(&text);
+    match result {
+        Ok(res) => {
+            if res.records.len() > 0 {
+                println!("current record is {:?}", res.records[0]);
+                Ok(Some((&res.records[0]).clone()))
+            } else {
+                Ok(None)
             }
         }
+        Err(err) => Err(anyhow!(err))
     }
-    return None;
 }
+
 
 fn modify_record(current_ip: &String, record: &Record, token: &str, domain: &str) {
     if &record.value != current_ip {
@@ -100,8 +122,35 @@ fn modify_record(current_ip: &String, record: &Record, token: &str, domain: &str
         if let Ok(res) = res {
             let text = res.text();
             if let Ok(text) = text {
-                println!("调用结果： {}", text);
+                println!("modify result is： {}", text);
             }
+        } else {
+            println!("error modify record");
         }
+    }
+}
+
+fn add_record(current_ip: &String, token: &str, domain: &str, sub_domain: &str) {
+    let client = reqwest::blocking::Client::new();
+    let mut params = HashMap::new();
+    params.insert("login_token", token);
+    params.insert("format", "json");
+    params.insert("error_on_empty", "no");
+    params.insert("lang", "en");
+    params.insert("domain", domain);
+    params.insert("sub_domain", sub_domain);
+    params.insert("record_type", "A");
+    params.insert("record_line", "默认");
+    params.insert("value", current_ip);
+    let res = client.post("https://dnsapi.cn/Record.Create")
+        .form(&params)
+        .send();
+    if let Ok(res) = res {
+        let text = res.text();
+        if let Ok(text) = text {
+            println!("add result is： {}", text);
+        }
+    } else {
+        println!("error add record");
     }
 }
