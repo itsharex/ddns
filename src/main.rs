@@ -7,8 +7,6 @@ use anyhow::{anyhow, Error};
 use std::env;
 
 
-// 获取ip的url
-const IP_URL: &str = "https://sg.gcall.me/ip";
 // 每隔几次强制从dnspod获取最新的记录
 const FORCE_GET_RECORD_INTERVAL: i8 = 5;
 // 间隔时间
@@ -33,12 +31,13 @@ fn main() -> Result<(), Error> {
     let domain = env::var("dnspod_domain")?;
     let sub_domain = env::var("dnspod_subdomain")?;
     let token = env::var("dnspod_token")?;
+    let ip_url=env::var("dnspod_ip_url").unwrap_or("https://sg.gcall.me/ip".to_string());
     println!("monitor current ip and modify [{}.{}] with token [{}]", sub_domain, domain, token);
     let mut latest_ip = "".to_string();
 
     let mut i = 0;
     loop {
-        let current_ip = current_ip();
+        let current_ip = current_ip(&ip_url);
         if let Ok(current_ip) = current_ip {
             // let current_ip = "127.0.0.1".to_string();
             println!("current ip = {}", current_ip);
@@ -63,8 +62,8 @@ fn main() -> Result<(), Error> {
     }
 }
 
-fn current_ip() -> Result<String, Error> {
-    let result = reqwest::blocking::get(IP_URL);
+fn current_ip(ip_url: &str) -> Result<String, Error> {
+    let result = reqwest::blocking::get(ip_url);
     match result {
         Ok(ip) => match ip.text() {
             Ok(text) => Ok(text),
