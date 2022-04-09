@@ -31,7 +31,7 @@ fn main() -> Result<(), Error> {
     let domain = env::var("dnspod_domain")?;
     let sub_domain = env::var("dnspod_subdomain")?;
     let token = env::var("dnspod_token")?;
-    let ip_url = env::var("dnspod_ip_url").unwrap_or("https://sg.arloor.dev/ip".to_string());
+    let ip_url = env::var("dnspod_ip_url").unwrap_or("https://arloor.com/ip".to_string());
     println!("monitor current ip by [{}] and modify [{}.{}] with token [{}]", ip_url, sub_domain, domain, token);
     let mut latest_ip = "".to_string();
 
