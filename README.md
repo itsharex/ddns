@@ -7,7 +7,7 @@ export dnspod_token="xxxxxx,594xxxxxxxxxxxxxxxxxxxx73"
 export dnspod_domain="example.com"
 export dnspod_subdomain="www"
 ## 查询ip的url，可以不指定
-export dnspod_ip_url="https://xxxx.com/ip"
+export dnspod_ip_url="https://bwg.arloor.dev:444/ip"
 ```
 
 ## Systemd配置
