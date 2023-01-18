@@ -54,8 +54,8 @@ fn main() -> Result<(), Error> {
                 }
                 latest_ip = current_ip;
             }
-        } else {
-            println!("error fetch current ip");
+        } else if let Err(e) = current_ip {
+            println!("error fetch current ip: {}",e)
         }
         sleep(Duration::from_secs(SLEEP_SECS));
         i += 1;
