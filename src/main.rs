@@ -1,3 +1,5 @@
+mod logx;
+
 use std::collections::HashMap;
 use std::thread::sleep;
 use std::time::Duration;
@@ -5,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Value};
 use anyhow::{anyhow, Error};
 use std::env;
+use log::{error, info};
 
 
 // 每隔几次强制从dnspod获取最新的记录
@@ -28,11 +31,12 @@ struct Record {
 
 /// 从环境变量中读取domain、sub_domain、token
 fn main() -> Result<(), Error> {
+    logx::init_log("log/ddns.log");
     let domain = env::var("dnspod_domain")?;
     let sub_domain = env::var("dnspod_subdomain")?;
     let token = env::var("dnspod_token")?;
     let ip_url = env::var("dnspod_ip_url").unwrap_or("https://arloor.com/ip".to_string());
-    println!("monitor current ip by [{}] and modify [{}.{}] with token [{}]", ip_url, sub_domain, domain, token);
+    info!("monitor current ip by [{}] and modify [{}.{}] with token [{}]", ip_url, sub_domain, domain, token);
     let mut latest_ip = "".to_string();
 
     let mut i = 0;
@@ -40,14 +44,14 @@ fn main() -> Result<(), Error> {
         let current_ip = current_ip(&ip_url);
         if let Ok(current_ip) = current_ip {
             // let current_ip = "127.0.0.1".to_string();
-            println!("current ip = {}", current_ip);
+            info!("current ip = {}", current_ip);
             if current_ip != latest_ip || i % FORCE_GET_RECORD_INTERVAL == 0 {
                 match get_record(&domain, &sub_domain, &token) {
                     Ok(Some(record)) => {
                         modify_record(&current_ip, &record, &token, &domain);
                     }
                     Ok(None) => {
-                        println!("no such record: {}.{}", sub_domain, domain);
+                        info!("no such record: {}.{}", sub_domain, domain);
                         add_record(&current_ip, &token, &domain, &sub_domain);
                     }
                     Err(_) => {}
@@ -55,7 +59,7 @@ fn main() -> Result<(), Error> {
                 latest_ip = current_ip;
             }
         } else if let Err(e) = current_ip {
-            println!("error fetch current ip: {}",e)
+            error!("error fetch current ip: {}",e)
         }
         sleep(Duration::from_secs(SLEEP_SECS));
         i += 1;
@@ -91,7 +95,7 @@ fn get_record(domain: &str, sub_domain: &str, token: &str) -> Result<Option<Reco
     match result {
         Ok(res) => {
             if res.records.len() > 0 {
-                println!("current record is {:?}", res.records[0]);
+                info!("current record is {:?}", res.records[0]);
                 Ok(Some((&res.records[0]).clone()))
             } else {
                 Ok(None)
@@ -121,10 +125,10 @@ fn modify_record(current_ip: &String, record: &Record, token: &str, domain: &str
         if let Ok(res) = res {
             let text = res.text();
             if let Ok(text) = text {
-                println!("modify result is： {}", text);
+                info!("modify result is： {}", text);
             }
         } else {
-            println!("error modify record");
+            info!("error modify record");
         }
     }
 }
@@ -147,9 +151,9 @@ fn add_record(current_ip: &String, token: &str, domain: &str, sub_domain: &str) 
     if let Ok(res) = res {
         let text = res.text();
         if let Ok(text) = text {
-            println!("add result is： {}", text);
+            info!("add result is： {}", text);
         }
     } else {
-        println!("error add record");
+        info!("error add record");
     }
 }

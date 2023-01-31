@@ -39,3 +39,9 @@ dnspod_subdomain="www"
 dnspod_ip_url="https://xxxx.com/ip"
 EOF
 ```
+
+## 日志
+
+```shell
+tailf -fn 100 /opt/ddns/log/ddns.log
+```
